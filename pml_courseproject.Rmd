@@ -1,0 +1,92 @@
+---
+title: "Predicting how the participants performed in the barbell lifts based on a set of variables tracked."
+author: "WaiKeen"
+date: "August 24, 2015"
+output: html_document
+---
+
+#Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+#Analysis
+##Importing the data
+Explored the data set prior to import and determine that the NA Strings should be identified as blank, NA and #DIV/0.
+
+```{r, message=FALSE, warning=FALSE}
+library(caret)
+library(randomForest)
+
+train <- read.csv("pml-training.csv",na.strings = c("","NA","#DIV/0!"))
+test <- read.csv("pml-testing.csv",na.strings = c("","NA","#DIV/0!"))
+
+dim(train)
+dim(test)
+```
+  
+##Preprocessing
+Initially explore the dataset (train) on the columns that contains more than 85% NA and remove the columns.  
+Column 1 to 8 is also removed as it is not information tracked from the movement.  
+
+Checking the subset of the dataset if the remaining in the columns have small variances using the 'nearZeroVar' from the caret package. The initial check indicates all the dataset do not have small variances.
+
+```{r}
+#Removing the columns with NA data more than 85% of the dataset rows.
+train <- train[,colSums(is.na(train))<(nrow(train)*0.85)]
+#Removing columns 1 to 7 for tracking not for the movement.
+train <- train[,8:60]
+
+#Checking for small variances of the dataset using caret package.
+nsv <- nearZeroVar(train,saveMetrics=TRUE)
+```
+##Data Slicing
+Creating a train and test set from the dataset (train) in order to train the algorithm and test the accuracy of the algorithm.  
+The data is separated with 'createDataPartition' from the caret package with a 70% train set and 30% test set.
+```{r}
+set.seed(817)
+inTrain <- createDataPartition(y=train$classe,p=0.7,list=FALSE)
+traintrain <- train[inTrain,]
+traintest <- train[-inTrain,]
+
+dim(traintrain)
+dim(traintest)
+```
+
+##Random Forest
+Executing the 'train' function from caret package, the algorithm will create the prediction model using the Random Forect ('method = "rf"').  
+
+```{r}
+#Rerun the model from saved cache of the model.
+my_model_file <- "my_model_rf_V01.Rds"
+if (file.exists(my_model_file)) {
+    # Read the model in and assign it to a variable.
+    modFit1 <- readRDS(my_model_file)
+} else {
+    # Otherwise, run the training.
+    modFit1 <- train(classe~.,data=traintrain,method="rf")
+}
+
+print(modFit1)
+```
+
+##Out of Sample Error
+The Out of Sample Error was at 0.7% based on the 30% test results.
+
+```{r}
+prediction <- predict(modFit1,newdata = traintest)
+confusionMatrix(prediction,traintest$classe)
+```
+
+##Cross-Validation
+Cross validation is done by resampling on the dataset to create a new random sample and rerun the random forest algorithm to the new dataset. The results have similar out of sample error.
+
+```{r}
+set.seed(1027)
+inTrain2 <- createDataPartition(y=train$classe,p=0.7,list=FALSE)
+traintrain2 <- train[inTrain2,]
+traintest2 <- train[-inTrain2,]
+
+prediction3 <- predict(modFit1,newdata=traintest2)
+confusionMatrix(prediction3,traintest2$classe)
+```
+##Citing Source
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
